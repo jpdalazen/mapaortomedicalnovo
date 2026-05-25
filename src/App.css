@@ -1,0 +1,16 @@
+/* 1. Força o download do CSS do Leaflet direto na sua folha de estilos */
+@import url('https://unpkg.com/leaflet@1.9.4/dist/leaflet.css');
+
+/* 2. Reseta as margens do navegador (tira as bordas brancas) */
+body,
+html {
+  margin: 0;
+  padding: 0;
+  height: 100vh;
+  width: 100vw;
+}
+
+/* 3. Garante que o Vite não vai espremer as imagens do mapa */
+.leaflet-container img {
+  max-width: none !important;
+}
