@@ -37,6 +37,14 @@ const CORES = {
 
 const CORES_VALIDAS = Object.keys(CORES);
 
+// Texto exibido ao passar o mouse ou tocar no "i" da legenda
+const DESCRICAO_CORES = {
+  Verde: 'Cliente ativo com alto volume de compras.',
+  Azul: 'Cliente ativo com volume médio.',
+  Amarelo: 'Cliente ativo com volume baixo.',
+  Vermelho: 'Cliente inativo, sem compras recentes.',
+};
+
 const criarIcone = (cor) =>
   L.divIcon({
     className: 'pin-customizado',
@@ -163,6 +171,90 @@ const CentralizarNoCliente = ({ cliente, origem }) => {
   return null;
 };
 
+// Item da legenda: mostra a contagem e explica o que a cor significa
+const ItemLegenda = ({ cor, total, aberta, aoAlternar, ehMobile, alinhar }) => {
+  const [sobre, setSobre] = useState(false);
+  const mostrar = aberta || (!ehMobile && sobre);
+  return (
+    <div style={{ position: 'relative' }}>
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          aoAlternar(aberta ? null : cor);
+        }}
+        onMouseEnter={() => setSobre(true)}
+        onMouseLeave={() => setSobre(false)}
+        aria-label={`${cor}: ${DESCRICAO_CORES[cor]}`}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 6,
+          fontSize: 12,
+          width: '100%',
+          padding: '4px 2px',
+          background: 'none',
+          border: 'none',
+          borderRadius: 4,
+          textAlign: 'left',
+          cursor: 'pointer',
+          fontFamily: 'inherit',
+        }}
+      >
+        <span
+          style={{
+            width: 16,
+            height: 16,
+            borderRadius: '50%',
+            background: CORES[cor].hex,
+            color: 'white',
+            fontSize: 10,
+            fontWeight: 700,
+            lineHeight: '16px',
+            textAlign: 'center',
+            flexShrink: 0,
+            fontStyle: 'italic',
+            fontFamily: 'Georgia, serif',
+          }}
+          aria-hidden="true"
+        >
+          i
+        </span>
+        <span style={{ color: '#666' }}>
+          {cor}: <b style={{ color: '#222' }}>{total}</b>
+        </span>
+      </button>
+
+      {mostrar && (
+        <div
+          role="tooltip"
+          style={{
+            position: 'absolute',
+            top: 'calc(100% + 4px)',
+            // na coluna da direita a dica é ancorada pela direita, senão estoura a barra lateral
+            ...(alinhar === 'direita' ? { right: 0 } : { left: 0 }),
+            zIndex: 1300,
+            width: 'max-content',
+            minWidth: 170,
+            maxWidth: 210,
+            padding: '8px 10px',
+            borderRadius: 6,
+            background: '#171717',
+            color: 'white',
+            fontSize: 12,
+            lineHeight: 1.4,
+            boxShadow: '0 4px 14px rgba(0,0,0,0.25)',
+            pointerEvents: 'none',
+          }}
+        >
+          <b style={{ display: 'block', marginBottom: 2 }}>{cor}</b>
+          {DESCRICAO_CORES[cor]}
+        </div>
+      )}
+    </div>
+  );
+};
+
 // O Leaflet precisa ser avisado quando o container muda de tamanho (giro de tela, barra do navegador)
 const AjustarAoRedimensionar = () => {
   const map = useMap();
@@ -190,6 +282,7 @@ export default function App() {
   const [clienteSelecionado, setClienteSelecionado] = useState(null);
   const [origemSelecao, setOrigemSelecao] = useState(null); // 'mapa' | 'lista'
   const [painelAberto, setPainelAberto] = useState(false); // gaveta de filtros no celular
+  const [corExplicada, setCorExplicada] = useState(null); // cor com a dica aberta na legenda
   const [modalAberto, setModalAberto] = useState(false);
   const [clienteEditando, setClienteEditando] = useState(null);
   const [aviso, setAviso] = useState(null);
@@ -211,6 +304,21 @@ export default function App() {
   useEffect(() => {
     if (!ehMobile) setPainelAberto(false);
   }, [ehMobile]);
+
+  // A dica da legenda fecha ao clicar em qualquer outro lugar ou com Esc
+  useEffect(() => {
+    if (!corExplicada) return;
+    const fechar = () => setCorExplicada(null);
+    const porTecla = (e) => {
+      if (e.key === 'Escape') setCorExplicada(null);
+    };
+    document.addEventListener('click', fechar);
+    document.addEventListener('keydown', porTecla);
+    return () => {
+      document.removeEventListener('click', fechar);
+      document.removeEventListener('keydown', porTecla);
+    };
+  }, [corExplicada]);
 
   useEffect(() => {
     if (!document.getElementById('leaflet-css')) {
@@ -712,28 +820,16 @@ export default function App() {
             borderBottom: '1px solid #e5e5e5',
           }}
         >
-          {CORES_VALIDAS.map((c) => (
-            <div
+          {CORES_VALIDAS.map((c, i) => (
+            <ItemLegenda
               key={c}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-                fontSize: 12,
-              }}
-            >
-              <span
-                style={{
-                  width: 10,
-                  height: 10,
-                  borderRadius: '50%',
-                  background: CORES[c].hex,
-                }}
-              />
-              <span style={{ color: '#666' }}>
-                {c}: <b style={{ color: '#222' }}>{contadores[c]}</b>
-              </span>
-            </div>
+              cor={c}
+              total={contadores[c]}
+              aberta={corExplicada === c}
+              aoAlternar={setCorExplicada}
+              ehMobile={ehMobile}
+              alinhar={i % 2 === 1 ? 'direita' : 'esquerda'}
+            />
           ))}
         </div>
 
