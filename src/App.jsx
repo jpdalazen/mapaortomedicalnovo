@@ -6,7 +6,9 @@ import {
   Popup,
   useMap,
   ZoomControl,
+  GeoJSON,
 } from 'react-leaflet';
+import contornoBrasil from './brasil.json';
 import L from 'leaflet';
 import * as XLSX from 'xlsx';
 import './App.css';
@@ -22,6 +24,8 @@ import {
   AlertCircle,
   CheckCircle2,
   SlidersHorizontal,
+  Settings,
+  Check,
 } from 'lucide-react';
 
 const SUPABASE_URL = 'https://hiijisdnardhlbwnpfzh.supabase.co';
@@ -36,6 +40,58 @@ const CORES = {
 };
 
 const CORES_VALIDAS = Object.keys(CORES);
+
+// Estilos de fundo do mapa, trocáveis pela engrenagem. Nenhum exige cadastro ou chave.
+const ESTILOS_MAPA = {
+  padrao: {
+    nome: 'Padrão',
+    resumo: 'OpenStreetMap, colorido',
+    url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+    atribuicao: '&copy; OpenStreetMap',
+    fundo: '#dfdfdf',
+    amostra: ['#e8e0d8', '#aadaa0', '#9cc6e8'],
+  },
+  claro: {
+    nome: 'Cinza claro',
+    resumo: 'Ruas discretas, os pins se destacam',
+    url: 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}',
+    atribuicao: 'Tiles &copy; Esri',
+    fundo: '#f3f3f3',
+    amostra: ['#f5f5f5', '#dcdcdc', '#c4c4c4'],
+  },
+  escuro: {
+    nome: 'Escuro',
+    resumo: 'Fundo escuro, bom para telão',
+    url: 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}',
+    atribuicao: 'Tiles &copy; Esri',
+    fundo: '#2b2b2b',
+    amostra: ['#3a3a3a', '#2b2b2b', '#565656'],
+  },
+  satelite: {
+    nome: 'Satélite',
+    resumo: 'Imagem de satélite',
+    url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+    atribuicao: 'Tiles &copy; Esri',
+    fundo: '#1b2a1b',
+    amostra: ['#3e5c3a', '#6b7f4a', '#2f4858'],
+  },
+  liso: {
+    nome: 'Fundo liso',
+    resumo: 'Só o contorno do Brasil, sem ruas',
+    semTiles: true,
+    fundo: '#eaf1f7',
+    preenchimento: '#ffffff',
+    borda: '#b9c6d4',
+    amostra: ['#eaf1f7', '#ffffff', '#b9c6d4'],
+  },
+};
+const ESTILO_PADRAO = 'padrao';
+
+// Enquadramento inicial: o Brasil inteiro. A navegação segue livre depois disso.
+const LIMITES_BRASIL = [
+  [-33.75, -73.99],
+  [5.28, -34.79],
+];
 
 // Texto exibido ao passar o mouse ou tocar no "i" da legenda
 const DESCRICAO_CORES = {
@@ -255,6 +311,141 @@ const ItemLegenda = ({ cor, total, aberta, aoAlternar, ehMobile, alinhar }) => {
   );
 };
 
+// Abre o mapa já enquadrado no Brasil inteiro, uma única vez
+const EnquadrarBrasil = () => {
+  const map = useMap();
+  useEffect(() => {
+    map.fitBounds(LIMITES_BRASIL, { padding: [20, 20], animate: false });
+  }, [map]);
+  return null;
+};
+
+// O react-leaflet só aplica o style na montagem, então a cor de fundo é trocada direto no container
+const FundoMapa = ({ cor }) => {
+  const map = useMap();
+  useEffect(() => {
+    map.getContainer().style.background = cor;
+  }, [map, cor]);
+  return null;
+};
+
+// Engrenagem que troca o estilo de fundo do mapa
+const SeletorEstilo = ({ estilo, aoEscolher, aberto, aoAlternar }) => (
+  <div style={{ position: 'absolute', top: 92, right: 10, zIndex: 1000 }}>
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation();
+        aoAlternar(!aberto);
+      }}
+      aria-label="Mudar o estilo do mapa"
+      title="Estilo do mapa"
+      style={{
+        width: 34,
+        height: 34,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderRadius: 6,
+        border: '2px solid rgba(0,0,0,0.2)',
+        background: 'white',
+        color: '#171717',
+        cursor: 'pointer',
+        boxShadow: '0 1px 5px rgba(0,0,0,0.25)',
+      }}
+    >
+      <Settings size={18} />
+    </button>
+
+    {aberto && (
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          position: 'absolute',
+          top: 40,
+          right: 0,
+          width: 232,
+          background: 'white',
+          borderRadius: 8,
+          border: '1px solid #e5e5e5',
+          boxShadow: '0 6px 22px rgba(0,0,0,0.22)',
+          overflow: 'hidden',
+        }}
+      >
+        <div
+          style={{
+            padding: '10px 12px',
+            fontSize: 11,
+            fontWeight: 700,
+            textTransform: 'uppercase',
+            letterSpacing: 0.4,
+            color: '#666',
+            borderBottom: '1px solid #eee',
+          }}
+        >
+          Estilo do mapa
+        </div>
+        {Object.entries(ESTILOS_MAPA).map(([chave, e]) => {
+          const ativo = chave === estilo;
+          return (
+            <button
+              key={chave}
+              type="button"
+              onClick={() => aoEscolher(chave)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+                width: '100%',
+                padding: '9px 12px',
+                border: 'none',
+                borderBottom: '1px solid #f3f3f3',
+                background: ativo ? '#f0f7f2' : 'white',
+                cursor: 'pointer',
+                textAlign: 'left',
+                fontFamily: 'inherit',
+              }}
+            >
+              <span
+                style={{
+                  display: 'flex',
+                  width: 26,
+                  height: 26,
+                  borderRadius: 5,
+                  overflow: 'hidden',
+                  flexShrink: 0,
+                  border: '1px solid #ddd',
+                }}
+                aria-hidden="true"
+              >
+                {e.amostra.map((c, i) => (
+                  <span key={i} style={{ flex: 1, background: c }} />
+                ))}
+              </span>
+              <span style={{ flex: 1, minWidth: 0 }}>
+                <span
+                  style={{
+                    display: 'block',
+                    fontSize: 13,
+                    fontWeight: 600,
+                    color: '#171717',
+                  }}
+                >
+                  {e.nome}
+                </span>
+                <span style={{ display: 'block', fontSize: 11, color: '#777' }}>
+                  {e.resumo}
+                </span>
+              </span>
+              {ativo && <Check size={15} color="#16a34a" />}
+            </button>
+          );
+        })}
+      </div>
+    )}
+  </div>
+);
+
 // O Leaflet precisa ser avisado quando o container muda de tamanho (giro de tela, barra do navegador)
 const AjustarAoRedimensionar = () => {
   const map = useMap();
@@ -283,6 +474,16 @@ export default function App() {
   const [origemSelecao, setOrigemSelecao] = useState(null); // 'mapa' | 'lista'
   const [painelAberto, setPainelAberto] = useState(false); // gaveta de filtros no celular
   const [corExplicada, setCorExplicada] = useState(null); // cor com a dica aberta na legenda
+  const [estiloMapa, setEstiloMapa] = useState(() => {
+    try {
+      const salvo = localStorage.getItem('estilo-mapa');
+      if (salvo && ESTILOS_MAPA[salvo]) return salvo;
+    } catch (e) {
+      /* navegador sem localStorage: segue com o padrão */
+    }
+    return ESTILO_PADRAO;
+  });
+  const [seletorEstiloAberto, setSeletorEstiloAberto] = useState(false);
   const [modalAberto, setModalAberto] = useState(false);
   const [clienteEditando, setClienteEditando] = useState(null);
   const [aviso, setAviso] = useState(null);
@@ -304,6 +505,31 @@ export default function App() {
   useEffect(() => {
     if (!ehMobile) setPainelAberto(false);
   }, [ehMobile]);
+
+  const escolherEstilo = (chave) => {
+    setEstiloMapa(chave);
+    setSeletorEstiloAberto(false);
+    try {
+      localStorage.setItem('estilo-mapa', chave);
+    } catch (e) {
+      /* sem localStorage a escolha vale só nesta sessão */
+    }
+  };
+
+  // O seletor de estilo fecha ao clicar fora ou com Esc
+  useEffect(() => {
+    if (!seletorEstiloAberto) return;
+    const fechar = () => setSeletorEstiloAberto(false);
+    const porTecla = (e) => {
+      if (e.key === 'Escape') setSeletorEstiloAberto(false);
+    };
+    document.addEventListener('click', fechar);
+    document.addEventListener('keydown', porTecla);
+    return () => {
+      document.removeEventListener('click', fechar);
+      document.removeEventListener('keydown', porTecla);
+    };
+  }, [seletorEstiloAberto]);
 
   // A dica da legenda fecha ao clicar em qualquer outro lugar ou com Esc
   useEffect(() => {
@@ -933,17 +1159,39 @@ export default function App() {
 
       <div style={{ flex: 1, position: 'relative' }}>
         <MapContainer
-          center={[-26.99, -48.63]}
-          zoom={9}
+          center={[-15, -54]}
+          zoom={4}
           zoomControl={false}
-          style={{ height: '100%', width: '100%' }}
+          style={{
+            height: '100%',
+            width: '100%',
+            background: ESTILOS_MAPA[estiloMapa].fundo,
+          }}
         >
           {/* à direita para não ficar embaixo do botão de filtros no celular */}
           <ZoomControl position="topright" />
-          <TileLayer
-            attribution="&copy; OpenStreetMap"
-            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-          />
+          <EnquadrarBrasil />
+          <FundoMapa cor={ESTILOS_MAPA[estiloMapa].fundo} />
+
+          {ESTILOS_MAPA[estiloMapa].semTiles ? (
+            <GeoJSON
+              key={estiloMapa}
+              data={contornoBrasil}
+              style={{
+                fillColor: ESTILOS_MAPA[estiloMapa].preenchimento,
+                fillOpacity: 1,
+                color: ESTILOS_MAPA[estiloMapa].borda,
+                weight: 1,
+              }}
+              interactive={false}
+            />
+          ) : (
+            <TileLayer
+              key={estiloMapa}
+              attribution={ESTILOS_MAPA[estiloMapa].atribuicao}
+              url={ESTILOS_MAPA[estiloMapa].url}
+            />
+          )}
           {clientesFiltrados
             .filter((c) => c.lat && c.lng)
             .map((c) => (
@@ -999,6 +1247,13 @@ export default function App() {
           />
           <AjustarAoRedimensionar />
         </MapContainer>
+
+        <SeletorEstilo
+          estilo={estiloMapa}
+          aoEscolher={escolherEstilo}
+          aberto={seletorEstiloAberto}
+          aoAlternar={setSeletorEstiloAberto}
+        />
 
         {/* Botão de filtros: só no celular, e só quando a gaveta está fechada */}
         {ehMobile && !painelAberto && (
