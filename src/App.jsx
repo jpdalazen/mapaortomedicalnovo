@@ -463,7 +463,119 @@ const AjustarAoRedimensionar = () => {
   return null;
 };
 
+// ---------------------------------------------------------------------------
+// Tela de senha
+// Atenção: esta é uma trava de conveniência, não uma proteção de verdade.
+// A senha vai junto no JavaScript enviado ao navegador, então quem abrir o
+// código da página consegue lê-la. Serve para evitar acesso casual, não para
+// proteger os dados. A proteção real precisa ser no Supabase ou na Vercel.
+// ---------------------------------------------------------------------------
+const SENHA_ACESSO = 'Orto227#';
+const CHAVE_ACESSO = 'mapa-acesso-liberado';
+
+const TelaSenha = ({ aoLiberar }) => {
+  const [valor, setValor] = useState('');
+  const [erro, setErro] = useState(false);
+
+  const enviar = (e) => {
+    e.preventDefault();
+    if (valor === SENHA_ACESSO) {
+      try {
+        localStorage.setItem(CHAVE_ACESSO, '1');
+      } catch (err) {
+        /* sem localStorage a liberação vale só nesta aba */
+      }
+      aoLiberar();
+    } else {
+      setErro(true);
+      setValor('');
+    }
+  };
+
+  return (
+    <div
+      style={{
+        height: '100dvh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: '#fafafa',
+        fontFamily: 'system-ui, -apple-system, sans-serif',
+        color: '#171717',
+        padding: 20,
+      }}
+    >
+      <form
+        onSubmit={enviar}
+        style={{
+          width: '100%',
+          maxWidth: 320,
+          background: 'white',
+          border: '1px solid #e5e5e5',
+          borderRadius: 10,
+          padding: 24,
+          boxShadow: '0 4px 18px rgba(0,0,0,0.06)',
+        }}
+      >
+        <label
+          htmlFor="senha"
+          style={{
+            display: 'block',
+            fontSize: 15,
+            fontWeight: 600,
+            marginBottom: 10,
+            letterSpacing: 'normal',
+          }}
+        >
+          Senha
+        </label>
+        <input
+          id="senha"
+          type="password"
+          autoFocus
+          autoComplete="current-password"
+          value={valor}
+          onChange={(e) => {
+            setValor(e.target.value);
+            setErro(false);
+          }}
+          style={{
+            ...input,
+            width: '100%',
+            fontSize: 16, // evita o zoom automático do iPhone ao focar o campo
+            borderColor: erro ? '#dc2626' : '#d4d4d4',
+          }}
+        />
+        {erro && (
+          <div style={{ color: '#dc2626', fontSize: 13, marginTop: 8 }}>
+            Senha incorreta.
+          </div>
+        )}
+        <button
+          type="submit"
+          style={{ ...btnPrimario, width: '100%', marginTop: 14 }}
+        >
+          Entrar
+        </button>
+      </form>
+    </div>
+  );
+};
+
 export default function App() {
+  const [liberado, setLiberado] = useState(() => {
+    try {
+      return localStorage.getItem(CHAVE_ACESSO) === '1';
+    } catch (e) {
+      return false;
+    }
+  });
+  // o mapa só monta depois da senha, então nada é buscado no banco antes disso
+  if (!liberado) return <TelaSenha aoLiberar={() => setLiberado(true)} />;
+  return <MapaClientes />;
+}
+
+function MapaClientes() {
   const [clientes, setClientes] = useState([]);
   const [carregando, setCarregando] = useState(true);
   const [busca, setBusca] = useState('');
