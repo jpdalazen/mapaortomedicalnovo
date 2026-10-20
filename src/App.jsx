@@ -1,5 +1,12 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
+import {
+  MapContainer,
+  TileLayer,
+  Marker,
+  Popup,
+  useMap,
+  ZoomControl,
+} from 'react-leaflet';
 import L from 'leaflet';
 import * as XLSX from 'xlsx';
 import './App.css';
@@ -14,6 +21,7 @@ import {
   Loader2,
   AlertCircle,
   CheckCircle2,
+  SlidersHorizontal,
 } from 'lucide-react';
 
 const SUPABASE_URL = 'https://hiijisdnardhlbwnpfzh.supabase.co';
@@ -120,12 +128,55 @@ const geocodificar = async (endereco) => {
 
 const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
 
-const CentralizarNoCliente = ({ cliente }) => {
+const LARGURA_MOBILE = 768;
+
+// true quando a tela é de celular; acompanha giro de tela e redimensionamento
+const useEhMobile = () => {
+  const consulta = `(max-width: ${LARGURA_MOBILE}px)`;
+  const [ehMobile, setEhMobile] = useState(
+    () => typeof window !== 'undefined' && window.matchMedia(consulta).matches
+  );
+  useEffect(() => {
+    const mq = window.matchMedia(consulta);
+    const aoMudar = (e) => setEhMobile(e.matches);
+    mq.addEventListener('change', aoMudar);
+    return () => mq.removeEventListener('change', aoMudar);
+  }, [consulta]);
+  return ehMobile;
+};
+
+// Zoom mínimo usado só quando o usuário escolhe o cliente pela lista lateral
+const ZOOM_MINIMO_LISTA = 13;
+
+const CentralizarNoCliente = ({ cliente, origem }) => {
   const map = useMap();
   useEffect(() => {
-    if (cliente && cliente.lat && cliente.lng)
-      map.flyTo([cliente.lat, cliente.lng], 13, { duration: 1.2 });
-  }, [cliente, map]);
+    if (!cliente || !cliente.lat || !cliente.lng) return;
+    // Clique no pin: o popup abre no lugar. Não mexemos no mapa, então o zoom fica como está.
+    if (origem === 'mapa') return;
+    // Clique na lista: centraliza, mas nunca afasta o que o usuário já aproximou.
+    const zoomAtual = map.getZoom();
+    map.flyTo([cliente.lat, cliente.lng], Math.max(zoomAtual, ZOOM_MINIMO_LISTA), {
+      duration: 1.2,
+    });
+  }, [cliente, origem, map]);
+  return null;
+};
+
+// O Leaflet precisa ser avisado quando o container muda de tamanho (giro de tela, barra do navegador)
+const AjustarAoRedimensionar = () => {
+  const map = useMap();
+  useEffect(() => {
+    const ajustar = () => map.invalidateSize();
+    window.addEventListener('resize', ajustar);
+    window.addEventListener('orientationchange', ajustar);
+    const t = setTimeout(ajustar, 300);
+    return () => {
+      window.removeEventListener('resize', ajustar);
+      window.removeEventListener('orientationchange', ajustar);
+      clearTimeout(t);
+    };
+  }, [map]);
   return null;
 };
 
@@ -137,6 +188,8 @@ export default function App() {
   const [filtroVendedor, setFiltroVendedor] = useState('Todos');
   const [filtroEstado, setFiltroEstado] = useState('Todos'); // NOVO FILTRO AQUI
   const [clienteSelecionado, setClienteSelecionado] = useState(null);
+  const [origemSelecao, setOrigemSelecao] = useState(null); // 'mapa' | 'lista'
+  const [painelAberto, setPainelAberto] = useState(false); // gaveta de filtros no celular
   const [modalAberto, setModalAberto] = useState(false);
   const [clienteEditando, setClienteEditando] = useState(null);
   const [aviso, setAviso] = useState(null);
@@ -144,6 +197,20 @@ export default function App() {
   const [importando, setImportando] = useState(false);
   const [progresso, setProgresso] = useState({ atual: 0, total: 0, falhas: 0 });
   const cancelarImportRef = useRef(false);
+
+  const ehMobile = useEhMobile();
+
+  // No celular, escolher pela lista fecha a gaveta para o mapa aparecer
+  const selecionarCliente = (cliente, origem) => {
+    setOrigemSelecao(origem);
+    setClienteSelecionado(cliente);
+    if (origem === 'lista' && ehMobile) setPainelAberto(false);
+  };
+
+  // Ao voltar para tela grande, a gaveta não deve continuar "aberta"
+  useEffect(() => {
+    if (!ehMobile) setPainelAberto(false);
+  }, [ehMobile]);
 
   useEffect(() => {
     if (!document.getElementById('leaflet-css')) {
@@ -400,28 +467,90 @@ export default function App() {
     <div
       style={{
         display: 'flex',
-        height: '100vh',
+        height: '100dvh',
         fontFamily: 'system-ui, -apple-system, sans-serif',
+        color: '#171717',
         overflow: 'hidden',
+        position: 'relative',
       }}
     >
+      {/* Fundo escurecido atrás da gaveta, só no celular */}
+      {ehMobile && painelAberto && (
+        <div
+          onClick={() => setPainelAberto(false)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.45)',
+            zIndex: 1100,
+          }}
+        />
+      )}
+
       <div
         style={{
-          width: 340,
+          width: ehMobile ? '86%' : 340,
+          maxWidth: 340,
           background: '#fafafa',
           borderRight: '1px solid #e5e5e5',
           display: 'flex',
           flexDirection: 'column',
           overflow: 'hidden',
+          ...(ehMobile
+            ? {
+                position: 'fixed',
+                top: 0,
+                left: 0,
+                bottom: 0,
+                zIndex: 1200,
+                transform: painelAberto ? 'translateX(0)' : 'translateX(-100%)',
+                transition: 'transform 0.25s ease',
+                boxShadow: painelAberto ? '0 0 24px rgba(0,0,0,0.25)' : 'none',
+              }
+            : {}),
         }}
       >
-        <div style={{ padding: 16, borderBottom: '1px solid #e5e5e5' }}>
-          <h1 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>
-            Mapa de Clientes
-          </h1>
-          <p style={{ margin: '4px 0 0', fontSize: 12, color: '#666' }}>
-            {clientes.length} clientes cadastrados
-          </p>
+        <div
+          style={{
+            padding: 16,
+            borderBottom: '1px solid #e5e5e5',
+            display: 'flex',
+            alignItems: 'flex-start',
+            justifyContent: 'space-between',
+            gap: 8,
+          }}
+        >
+          <div>
+            <h1
+              style={{
+                margin: 0,
+                fontSize: 18,
+                fontWeight: 700,
+                letterSpacing: 'normal',
+                color: '#171717',
+              }}
+            >
+              Mapa de Clientes
+            </h1>
+            <p style={{ margin: '4px 0 0', fontSize: 12, color: '#666' }}>
+              {clientes.length} clientes cadastrados
+            </p>
+          </div>
+          {ehMobile && (
+            <button
+              onClick={() => setPainelAberto(false)}
+              aria-label="Fechar filtros"
+              style={{
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                padding: 4,
+                color: '#444',
+              }}
+            >
+              <X size={22} />
+            </button>
+          )}
         </div>
 
         <div
@@ -628,7 +757,7 @@ export default function App() {
             clientesFiltrados.map((c) => (
               <div
                 key={c.id}
-                onClick={() => setClienteSelecionado(c)}
+                onClick={() => selecionarCliente(c, 'lista')}
                 style={{
                   padding: '10px 14px',
                   borderBottom: '1px solid #eee',
@@ -710,8 +839,11 @@ export default function App() {
         <MapContainer
           center={[-26.99, -48.63]}
           zoom={9}
+          zoomControl={false}
           style={{ height: '100%', width: '100%' }}
         >
+          {/* à direita para não ficar embaixo do botão de filtros no celular */}
+          <ZoomControl position="topright" />
           <TileLayer
             attribution="&copy; OpenStreetMap"
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
@@ -723,7 +855,7 @@ export default function App() {
                 key={c.id}
                 position={[c.lat, c.lng]}
                 icon={criarIcone(CORES[c.status_conta]?.hex || '#999')}
-                eventHandlers={{ click: () => setClienteSelecionado(c) }}
+                eventHandlers={{ click: () => selecionarCliente(c, 'mapa') }}
               >
                 <Popup>
                   <div style={{ minWidth: 200 }}>
@@ -765,8 +897,43 @@ export default function App() {
                 </Popup>
               </Marker>
             ))}
-          <CentralizarNoCliente cliente={clienteSelecionado} />
+          <CentralizarNoCliente
+            cliente={clienteSelecionado}
+            origem={origemSelecao}
+          />
+          <AjustarAoRedimensionar />
         </MapContainer>
+
+        {/* Botão de filtros: só no celular, e só quando a gaveta está fechada */}
+        {ehMobile && !painelAberto && (
+          <button
+            onClick={() => setPainelAberto(true)}
+            style={{
+              position: 'absolute',
+              top: 12,
+              left: 12,
+              zIndex: 1000,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              padding: '10px 14px',
+              borderRadius: 8,
+              border: '1px solid #d4d4d4',
+              background: 'white',
+              color: '#171717',
+              fontSize: 14,
+              fontWeight: 600,
+              cursor: 'pointer',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.18)',
+            }}
+          >
+            <SlidersHorizontal size={16} />
+            Filtros
+            <span style={{ color: '#666', fontWeight: 500 }}>
+              ({clientesFiltrados.length})
+            </span>
+          </button>
+        )}
 
         {aviso && (
           <div
