@@ -17,7 +17,8 @@
 
   font: 18px/145% var(--sans);
   letter-spacing: 0.18px;
-  color-scheme: light dark;
+  /* a interface é clara; sem isso o celular em modo escuro inverte cores de inputs e selects */
+  color-scheme: light;
   color: var(--text);
   background: var(--bg);
   font-synthesis: none;
@@ -50,20 +51,29 @@
   }
 }
 
+/* App de tela cheia: o #root ocupa tudo, sem a moldura centrada do template */
 #root {
-  width: 1126px;
-  max-width: 100%;
-  margin: 0 auto;
-  text-align: center;
-  border-inline: 1px solid var(--border);
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  text-align: left;
+  border-inline: none;
   min-height: 100svh;
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
 }
 
+html,
+body,
+#root {
+  height: 100%;
+}
+
 body {
   margin: 0;
+  /* evita o "puxar para atualizar" e o balanço elástico ao arrastar o mapa no celular */
+  overscroll-behavior: none;
 }
 
 h1,
