@@ -1106,6 +1106,7 @@ function MapaClientes() {
               value={busca}
               onChange={(e) => setBusca(e.target.value)}
               placeholder="Buscar por nome..."
+              aria-label="Buscar por nome"
               style={{ ...input, paddingLeft: 32 }}
             />
           </div>
@@ -1113,40 +1114,45 @@ function MapaClientes() {
           <div
             style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}
           >
-            <select
-              value={filtroStatus}
-              onChange={(e) => setFiltroStatus(e.target.value)}
-              style={input}
-              title="Status"
-            >
-              <option>Todas</option>
-              {CORES_VALIDAS.map((c) => (
-                <option key={c}>{c}</option>
-              ))}
-            </select>
-            <select
-              value={filtroVendedor}
-              onChange={(e) => setFiltroVendedor(e.target.value)}
-              style={input}
-              title="Vendedor"
-            >
-              {vendedores.map((v) => (
-                <option key={v}>{v}</option>
-              ))}
-            </select>
+            <Filtro id="filtro-cor" rotulo="Cor">
+              <select
+                id="filtro-cor"
+                value={filtroStatus}
+                onChange={(e) => setFiltroStatus(e.target.value)}
+                style={input}
+              >
+                <option>Todas</option>
+                {CORES_VALIDAS.map((c) => (
+                  <option key={c}>{c}</option>
+                ))}
+              </select>
+            </Filtro>
+            <Filtro id="filtro-vendedor" rotulo="Vendedor">
+              <select
+                id="filtro-vendedor"
+                value={filtroVendedor}
+                onChange={(e) => setFiltroVendedor(e.target.value)}
+                style={input}
+              >
+                {vendedores.map((v) => (
+                  <option key={v}>{v}</option>
+                ))}
+              </select>
+            </Filtro>
           </div>
 
-          {/* NOVO DROPDOWN DE ESTADO */}
-          <select
-            value={filtroEstado}
-            onChange={(e) => setFiltroEstado(e.target.value)}
-            style={input}
-            title="Estado"
-          >
-            {estados.map((uf) => (
-              <option key={uf}>{uf}</option>
-            ))}
-          </select>
+          <Filtro id="filtro-uf" rotulo="UF">
+            <select
+              id="filtro-uf"
+              value={filtroEstado}
+              onChange={(e) => setFiltroEstado(e.target.value)}
+              style={input}
+            >
+              {estados.map((uf) => (
+                <option key={uf}>{uf}</option>
+              ))}
+            </select>
+          </Filtro>
         </div>
 
         <div
@@ -1608,6 +1614,25 @@ function MapaClientes() {
     </div>
   );
 }
+
+// Rótulo sobre cada filtro da barra lateral, para saber o que cada lista faz
+const Filtro = ({ id, rotulo, children }) => (
+  <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+    <label
+      htmlFor={id}
+      style={{
+        fontSize: 11,
+        fontWeight: 600,
+        color: '#666',
+        textTransform: 'uppercase',
+        letterSpacing: 0.4,
+      }}
+    >
+      {rotulo}
+    </label>
+    {children}
+  </div>
+);
 
 const Campo = ({ label, children }) => (
   <div>
